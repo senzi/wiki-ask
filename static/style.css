@@ -11,15 +11,17 @@
   --mono: "JetBrains Mono", Consolas, monospace;
   --glow: 0 0 32px rgba(255, 255, 255, 0.08);
 }
-
 * { margin: 0; padding: 0; box-sizing: border-box; }
-html, body { height: 100%; }
+html, body { min-height: 100%; }
 
 body {
   background: var(--bg);
   color: var(--ink);
   font-family: "LXGW WenKai", "霞鹜文楷", serif;
-  overflow-x: hidden;
+  /* 注意：不要用 overflow-x: hidden + height:100% —— 会把 body 变成滚动容器，
+     导致 window 不可滚动（整页截图插件无法自动滚动拼接）。
+     overflow-x: clip 不创建滚动容器，overflow-y 保持 visible。 */
+  overflow-x: clip;
 }
 
 /* ---- 背景：透视网格 + 光扫 + 噪点 ---- */
