@@ -92,6 +92,7 @@ wiki-ask/
 │   ├── style.css        # 单色科技风样式
 │   └── viewer.html      # wiki 原文查看器（拉取 /api/wiki-raw 渲染）
 ├── docs/                # 开发者文档
+│   ├── PRD.md           # 从零构造同类最小 Demo 的产品需求与边界
 │   ├── events.md        # 事件流格式、state.db 字段、定制日志指南
 │   └── example-skill.md # 通用问答 skill 模板
 └── tests/               # 可公开测试（tests_private/ 已 gitignore，放私有数据）
@@ -99,6 +100,7 @@ wiki-ask/
 
 ## 文档
 
+- [docs/PRD.md](docs/PRD.md) — 面向实现 Agent 的自包含 PRD：复用产品思路，自由选择样式、技术栈与可选能力
 - [docs/events.md](docs/events.md) — 事件流格式、state.db 原始字段说明、过滤逻辑位置、如何获取更详细的日志
 - [docs/example-skill.md](docs/example-skill.md) — 通用问答 skill 模板（答复模板 / 只读约束 / 引用格式）
 
