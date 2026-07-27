@@ -31,9 +31,13 @@ platforms: [linux, macos, windows]
 
 1. 读索引文件（如有）定位相关页面。
 2. 关键词搜索补充：
-   search_files "<关键词>" path="<你的知识库根目录>" file_glob="*.md"
-   同义词/英文名/缩写各试一次。若 search_files 对中文路径报错，
-   改用 terminal：grep -rl "关键词" "<你的知识库根目录>" --include="*.md"
+   ```bash
+   grep -rl "关键词" "<你的知识库根目录>" --include="*.md"
+   find "<你的知识库根目录>" -iname "*关键词*"
+   ```
+   同义词/英文名/缩写各试一次。如果 search_files 在你的环境可用也可以用它；
+   但在某些 Windows 环境它会把路径转成 MSYS `/d/...` 形式导致 rg 找不到路径，
+   此时一律用 terminal 的 grep/find。
 3. read_file 读 2~6 个最相关的页面。
 4. 按模板输出答复。
 

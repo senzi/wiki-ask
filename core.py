@@ -96,9 +96,11 @@ def _find_session_id(launch_ts: float, question: str):
 
 def _run_task(task: AskTask):
     launch_ts = time.time()
+    # 完整提示词模板：{question} 为用户原始问题
+    prompt = f"使用 {SKILL} skill，回答用户的问题：{task.question}"
     cmd = [
         HERMES_EXE, "chat",
-        "-q", task.question,
+        "-q", prompt,
         "-s", SKILL,
         "--source", SOURCE_TAG,
         "-Q",
@@ -127,9 +129,9 @@ def _run_task(task: AskTask):
             task.emit({"type": "error", "text": f"超时（{TIMEOUT}s），已终止"})
             break
 
-        # 找 session
+        # 找 session（注意：匹配的是包装后的完整 prompt，不是裸问题）
         if task.session_id is None:
-            sid = _find_session_id(launch_ts, task.question)
+            sid = _find_session_id(launch_ts, prompt)
             if sid:
                 task.session_id = sid
                 task.emit({"type": "status", "text": "已接入知识库，开始检索…", "session_id": sid})

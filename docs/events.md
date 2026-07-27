@@ -41,7 +41,13 @@ sqlite3.connect(f"file:{STATE_DB}?mode=ro", uri=True, timeout=5)
 子进程启动后，用两个条件在 `sessions` 里找本次运行：
 
 1. `started_at >= 启动时间 - 5s`
-2. 该会话第一条 `role='user'` 消息的 `content` 与问题**逐字相等**
+2. 该会话第一条 `role='user'` 消息的 `content` 与**完整 prompt 逐字相等**
+
+注意 CLI 收到的是包装后的完整提示词（`core.py:_run_task`）：
+
+```
+使用 {skill} skill，回答用户的问题：{question}
+```
 
 比解析 stdout 里的 `session_id:` 行更可靠（输出格式随 quiet/verbose 变化）。
 
