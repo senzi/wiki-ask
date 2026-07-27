@@ -1,0 +1,5 @@
+wiki-ask/
+__pycache__/
+*.pyc
+.venv/
+config.json

@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>析问 · Wiki Ask</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23060606'/%3E%3Cpath d='M32 9 L55 32 L32 55 L9 32 Z' fill='none' stroke='%23e8e8e8' stroke-width='3'/%3E%3Ccircle cx='32' cy='32' r='5' fill='%23e8e8e8'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/lxgw-wenkai-webfont@1.7.0/style.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/jetbrains-mono@5.1.0/400.css">
+<link rel="stylesheet" href="/style.css">
+<script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js"></script>
+</head>
+<body>
+
+<!-- 科技网格背景 -->
+<div class="bg-grid"></div>
+<div class="bg-sweep"></div>
+<div class="bg-noise"></div>
+
+<!-- 历史抽屉 -->
+<aside id="drawer">
+  <div class="drawer-head">
+    <span class="drawer-title">◈ ARCHIVE / 检索档案</span>
+    <div class="drawer-actions">
+      <button id="exportBtn" title="导出 JSON">⇩</button>
+      <button id="clearBtn" title="清空">✕</button>
+    </div>
+  </div>
+  <div id="historyList"></div>
+</aside>
+<div id="drawerMask"></div>
+
+<main id="app">
+
+  <!-- 主页：搜索引擎式 -->
+  <section id="landing">
+    <button id="archiveBtn" class="archive-btn" title="检索档案">◈ ARCHIVE</button>
+    <div class="logo-wrap">
+      <div class="logo">析问</div>
+      <div class="logo-sub">WIKI&nbsp;ASK&nbsp;//&nbsp;KNOWLEDGE&nbsp;RETRIEVAL</div>
+    </div>
+    <div class="search-box">
+      <span class="search-icon">⌕</span>
+      <input id="mainInput" type="text" placeholder="向知识库发问…" autocomplete="off" autofocus>
+      <button id="mainGo" class="go-btn">检 索</button>
+    </div>
+    <div class="chips">
+      <span class="chips-label">TRY //</span>
+      <button class="chip">Neocloud 是什么？</button>
+      <button class="chip">霞鹜文楷的协议争议</button>
+      <button class="chip">MD5 还安全吗</button>
+      <button class="chip">Hermes Agent 是什么</button>
+    </div>
+    <div class="landing-foot">POWERED BY 析染 × HERMES AGENT — 答案只来自你的 WIKI</div>
+  </section>
+
+  <!-- 结果页 -->
+  <section id="results" class="hidden">
+
+    <header id="topbar">
+      <button id="menuBtn" title="检索档案">☰</button>
+      <span class="mini-logo" id="homeLink">析问</span>
+      <div class="top-search">
+        <input id="topInput" type="text" placeholder="再问一次…" autocomplete="off">
+        <button id="topGo">↵</button>
+      </div>
+    </header>
+
+    <div class="result-grid">
+
+      <div class="answer-col">
+        <h1 id="qTitle"></h1>
+
+        <div id="answerCard" class="card">
+          <div id="answerBody" class="markdown">
+            <div class="thinking">
+              <span class="dot"></span><span class="dot"></span><span class="dot"></span>
+              <span class="thinking-text">析染正在翻阅 Wiki…</span>
+            </div>
+          </div>
+        </div>
+
+        <div id="citations" class="citations hidden">
+          <div class="cite-head">◈ SOURCES / 依据</div>
+          <div id="citeList" class="cite-list"></div>
+        </div>
+
+        <div id="metaLine" class="meta-line hidden"></div>
+      </div>
+
+      <div class="process-col">
+        <div class="proc-head">PROCESS / 检索过程</div>
+        <div id="timeline" class="timeline"></div>
+      </div>
+
+    </div>
+  </section>
+
+</main>
+
+<script src="/app.js"></script>
+</body>
+</html>

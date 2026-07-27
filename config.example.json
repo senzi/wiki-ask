@@ -1,0 +1,11 @@
+{
+  "hermes_exe": "C:/path/to/hermes-agent/venv/Scripts/hermes.exe",
+  "state_db": "C:/path/to/hermes/state.db",
+  "wiki_root": "D:/path/to/your/wiki",
+  "skill": "llm-wiki-qa",
+  "source_tag": "wiki-ask",
+  "workdir": "",
+  "timeout": 300,
+  "host": "127.0.0.1",
+  "port": 5007
+}
