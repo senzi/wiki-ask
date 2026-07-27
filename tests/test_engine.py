@@ -1,6 +1,10 @@
 # -*- coding: utf-8 -*-
 """引擎冒烟测试：不启动 Flask，直接测 core.start_ask 全流程。"""
+import os
+import sys
 import time
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from core import start_ask
 

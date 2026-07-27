@@ -71,8 +71,11 @@ copy config.example.json config.json
 ## 测试
 
 ```powershell
-.\.venv\Scripts\python.exe test_engine.py   # 引擎冒烟测试（真实调用一次 LLM，约 1-3 分钟）
+.\.venv\Scripts\python.exe tests/test_engine.py   # 引擎冒烟测试（真实调用一次 LLM，约 1-3 分钟）
+node tests/test_extraction.js                      # 展示层推断逻辑（离线，零成本）
 ```
+
+`tests/` 是可公开的测试；`tests_private/` 已 gitignore，放本地私有测试数据（如导出的真实档案）。
 
 ## License
 

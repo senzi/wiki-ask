@@ -3,3 +3,4 @@ __pycache__/
 *.pyc
 .venv/
 config.json
+tests_private/

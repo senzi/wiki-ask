@@ -250,6 +250,21 @@ body {
   font-family: var(--mono); font-size: 12px; letter-spacing: .1em;
 }
 
+.regen-btn {
+  margin-top: 16px;
+  background: none; border: 1px solid var(--border); color: var(--dim);
+  font-family: var(--mono); font-size: 12.5px; letter-spacing: .15em;
+  padding: 10px 22px; border-radius: 8px; cursor: pointer; transition: .22s;
+}
+.regen-btn:hover { color: #fff; border-color: var(--border-hi); box-shadow: var(--glow); }
+
+.stale-banner {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+  background: #2a1515; color: #ff9c9c; border-bottom: 1px solid #5a2a2a;
+  font-family: var(--mono); font-size: 12.5px; letter-spacing: .06em;
+  text-align: center; padding: 9px 16px;
+}
+
 /* ---- 过程时间线（Hermes 桌面端风格） ---- */
 .process-col {
   background: var(--panel); border: 1px solid var(--border);

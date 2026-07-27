@@ -3,29 +3,55 @@ const $ = (s) => document.querySelector(s);
 
 const LS_KEY = "wiki-ask-history-v2";
 
-/* ---------- 历史记录（localStorage，含过程日志） ---------- */
+/* ---------- 历史记录（localStorage，含过程日志 + 多版本） ----------
+   结构：{question, time, elapsed, versions: [{id, answer, elapsed, time, events}, ...]}
+   versions 最新在前，上限 5 个；前端永远只展示最新版本。 */
+const MAX_VERSIONS = 5;
+
 function loadHistory() {
-  try { return JSON.parse(localStorage.getItem(LS_KEY)) || []; }
-  catch { return []; }
+  let list;
+  try { list = JSON.parse(localStorage.getItem(LS_KEY)) || []; }
+  catch { list = []; }
+  // 旧格式迁移：无 versions 的条目包一层
+  return list.map((x) => x.versions ? x : {
+    question: x.question,
+    time: x.time,
+    elapsed: x.elapsed,
+    versions: [{ id: x.id, answer: x.answer, elapsed: x.elapsed, time: x.time, events: x.events || [] }],
+  });
 }
 function saveHistory(list) {
-  // 过程日志可能很大，单条 events 截断保护
   const trimmed = list.slice(0, 100).map((x) => ({
-    ...x, events: (x.events || []).slice(0, 300),
+    ...x,
+    versions: x.versions.map((v) => ({ ...v, events: (v.events || []).slice(0, 300) })),
   }));
   try { localStorage.setItem(LS_KEY, JSON.stringify(trimmed)); }
-  catch { // 超出配额时逐步丢弃最旧记录
+  catch {
     trimmed.pop(); saveHistory(trimmed);
   }
 }
-function addHistory(item) {
+function addHistory(record) {
   const list = loadHistory();
-  list.unshift(item);
+  const version = { id: record.id, answer: record.answer, elapsed: record.elapsed, time: record.time, events: record.events };
+  const existing = list.find((x) => x.question === record.question);
+  if (existing) {
+    existing.versions.unshift(version);
+    existing.versions = existing.versions.slice(0, MAX_VERSIONS);
+    existing.time = record.time;
+    existing.elapsed = record.elapsed;
+    list.splice(list.indexOf(existing), 1);
+    list.unshift(existing);
+  } else {
+    list.unshift({ question: record.question, time: record.time, elapsed: record.elapsed, versions: [version] });
+  }
   saveHistory(list);
   renderHistory();
 }
-function delHistory(id) {
-  saveHistory(loadHistory().filter((x) => x.id !== id));
+function findCached(question) {
+  return loadHistory().find((x) => x.question === question) || null;
+}
+function delHistory(question) {
+  saveHistory(loadHistory().filter((x) => x.question !== question));
   renderHistory();
 }
 
@@ -41,14 +67,16 @@ function renderHistory() {
     const div = document.createElement("div");
     div.className = "hist-item";
     const d = new Date(item.time);
+    const latest = item.versions[0];
     // 步数与时间线实际渲染的元素对齐：tool_result 并入工具卡片、answer 不在时间线
-    const steps = (item.events || []).filter((e) => e.type !== "answer" && e.type !== "tool_result").length;
+    const steps = (latest.events || []).filter((e) => e.type !== "answer" && e.type !== "tool_result").length;
+    const vInfo = item.versions.length > 1 ? ` · v${item.versions.length}` : "";
     div.innerHTML = `
       <div class="hist-q"></div>
-      <div class="hist-t">${d.toLocaleString("zh-CN", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" })} · ${item.elapsed ?? "?"}s · ${steps} 步</div>
+      <div class="hist-t">${d.toLocaleString("zh-CN", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" })} · ${latest.elapsed ?? "?"}s · ${steps} 步${vInfo}</div>
       <button class="hist-del" title="删除">✕</button>`;
     div.querySelector(".hist-q").textContent = item.question;
-    div.querySelector(".hist-del").onclick = (e) => { e.stopPropagation(); delHistory(item.id); };
+    div.querySelector(".hist-del").onclick = (e) => { e.stopPropagation(); delHistory(item.question); };
     div.onclick = () => { closeDrawer(); showResult(item); };
     box.appendChild(div);
   }
@@ -252,32 +280,57 @@ function parseAnswer(markdown) {
   return sections;
 }
 
-/* ---------- Wiki 索引：[[wikilink]] → 可点击链接 ---------- */
+/* ---------- Wiki 索引：[[wikilink]] → 可点击链接（DOM 级替换） ---------- */
 let WIKI_MAP = null;       // 文件名(不含.md) → 相对路径
 let _lastAnswerMd = null;  // 当前展示的答复原文（索引到达后重渲染用）
 
 fetch("/api/wiki-index")
-  .then((r) => r.json())
+  .then((r) => r.ok ? r.json() : null)
   .then((m) => {
     WIKI_MAP = m;
-    if (_lastAnswerMd) renderAnswer(_lastAnswerMd);
+    if (m && _lastAnswerMd) renderAnswer(_lastAnswerMd);
   })
   .catch(() => {});
 
-function linkifyWikilinks(md) {
-  return md.replace(/\[\[([^\]]+)\]\]/g, (m, name) => {
-    const path = WIKI_MAP && WIKI_MAP[name];
-    if (path) {
-      return `<a class="wl" href="/wiki/${encodeURI(path)}" target="_blank" rel="noopener">[[${name}]]</a>`;
+// 在渲染后的 DOM 里做文本节点替换，绕过 marked/DOMPurify 的一切不确定性
+function linkifyDom(container) {
+  if (!WIKI_MAP) return;
+  const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT);
+  const nodes = [];
+  while (walker.nextNode()) nodes.push(walker.currentNode);
+  for (const node of nodes) {
+    if (node.parentElement.closest("a")) continue;
+    const text = node.nodeValue;
+    if (!/\[\[([^\]]+)\]\]/.test(text)) continue;
+    const frag = document.createDocumentFragment();
+    const re = /\[\[([^\]]+)\]\]/g;
+    let m, last = 0;
+    while ((m = re.exec(text))) {
+      frag.appendChild(document.createTextNode(text.slice(last, m.index)));
+      const name = m[1];
+      const path = WIKI_MAP[name];
+      const el = document.createElement(path ? "a" : "span");
+      el.className = path ? "wl" : "wl-dead";
+      el.textContent = `[[${name}]]`;
+      if (path) {
+        el.href = `/wiki/${encodeURI(path)}`;
+        el.target = "_blank";
+        el.rel = "noopener";
+      }
+      frag.appendChild(el);
+      last = m.index + m[0].length;
     }
-    return `<span class="wl-dead">[[${name}]]</span>`;
-  });
+    frag.appendChild(document.createTextNode(text.slice(last)));
+    node.parentNode.replaceChild(frag, node);
+  }
 }
 
 function renderAnswer(markdown) {
   _lastAnswerMd = markdown;
   const { body, citations } = parseAnswer(markdown);
-  $("#answerBody").innerHTML = DOMPurify.sanitize(marked.parse(linkifyWikilinks(body)));
+  const answerEl = $("#answerBody");
+  answerEl.innerHTML = DOMPurify.sanitize(marked.parse(body));
+  linkifyDom(answerEl);
 
   if (citations.length) {
     const list = $("#citeList");
@@ -304,10 +357,16 @@ function renderAnswer(markdown) {
 /* ---------- 提问主流程 ---------- */
 let currentES = null;
 
-async function ask(question) {
+async function ask(question, force = false) {
   question = (question || "").trim();
   if (!question) return;
   if (currentES) { currentES.close(); currentES = null; }
+
+  // 完全相同的问题命中缓存：不调用 Agent，直接展示最新版本
+  if (!force) {
+    const hit = findCached(question);
+    if (hit) { showResult(hit); return; }
+  }
 
   toResults(question);
 
@@ -361,11 +420,13 @@ async function ask(question) {
   };
 }
 
-/* ---------- 缓存还原（含过程回放） ---------- */
+/* ---------- 缓存还原（含过程回放，永远展示最新版本） ---------- */
 function showResult(item) {
+  const v = item.versions[0];
   toResults(item.question);
-  const events = item.events || [];
+  const events = v.events || [];
   if (events.length) {
+    tlStatus("◈ 命中本地缓存 · 未消耗 API（点「重新生成」可再次调用 Agent）");
     for (const ev of events) {
       if (ev.type === "answer") continue;
       renderEvent(ev);
@@ -373,8 +434,9 @@ function showResult(item) {
   } else {
     tlStatus("◈ 本地档案还原（旧格式，无过程日志）");
   }
-  renderAnswer(item.answer);
-  $("#metaLine").textContent = `◈ ARCHIVE / ${new Date(item.time).toLocaleString("zh-CN")} · ${item.elapsed ?? "?"}s`;
+  renderAnswer(v.answer);
+  const vInfo = item.versions.length > 1 ? ` · 共 ${item.versions.length} 个版本（展示最新）` : "";
+  $("#metaLine").textContent = `◈ ARCHIVE / ${new Date(v.time).toLocaleString("zh-CN")} · ${v.elapsed ?? "?"}s${vInfo}`;
   $("#metaLine").classList.remove("hidden");
 }
 
@@ -401,5 +463,20 @@ $("#exportBtn").onclick = () => {
   a.click();
 };
 document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeDrawer(); });
+$("#regenBtn").onclick = () => ask($("#qTitle").textContent, /*force=*/true);
+
+/* ---------- 后端版本检测：过旧则提示重启 ---------- */
+const EXPECTED_VERSION = "2026-07-27.1";
+fetch("/api/version")
+  .then((r) => (r.ok ? r.json() : null))
+  .then((v) => { if (!v || v.version !== EXPECTED_VERSION) staleBanner(); })
+  .catch(() => staleBanner());
+function staleBanner() {
+  if (document.querySelector(".stale-banner")) return;
+  const b = document.createElement("div");
+  b.className = "stale-banner";
+  b.textContent = "⚠ 后端版本过旧，部分功能不可用（如 wikilink 跳转）——请重启 Flask 服务";
+  document.body.prepend(b);
+}
 
 renderHistory();

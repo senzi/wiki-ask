@@ -9,6 +9,7 @@ from flask import Flask, jsonify, request, Response, send_from_directory, abort
 from core import start_ask, get_task, CONFIG
 
 WIKI_ROOT = CONFIG["wiki_root"]
+APP_VERSION = "2026-07-27.1"  # 前端用它检测后端是否过旧（改了记得 bump）
 
 app = Flask(__name__, static_folder="static", static_url_path="")
 
@@ -36,6 +37,14 @@ main{max-width:760px;margin:0 auto;}
   border:1px solid #2c2c2c;border-radius:6px;padding:3px 10px;background:#141414;}
 .meta-sources{margin-top:12px;font-family:Consolas,monospace;font-size:11.5px;color:#666;line-height:1.8;word-break:break-all;}
 .meta-sources b{color:#555;font-weight:400;}
+.src-link{color:#999;text-decoration:none;border-bottom:1px dashed #444;}
+.src-link:hover{color:#fff;border-bottom-color:#fff;}
+.markdown .wl{display:inline-block;background:#e8e8e8;color:#0a0a0a !important;
+  font-size:.85em;font-weight:700;padding:1px 10px;margin:0 2px;border-radius:999px;
+  text-decoration:none !important;transition:.2s;}
+.markdown .wl:hover{background:#fff;box-shadow:0 0 16px rgba(255,255,255,.4);transform:translateY(-1px);}
+.markdown .wl::after{content:" ↗";font-size:.8em;opacity:.55;}
+.markdown .wl-dead{color:#777;border-bottom:1px dashed #444;}
 .markdown{font-size:16.5px;line-height:1.95;}
 .markdown h1,.markdown h2,.markdown h3{color:#fff;margin:26px 0 12px;}
 .markdown h1{font-size:26px;}.markdown h2{font-size:20px;border-left:3px solid #fff;padding-left:12px;}
@@ -59,6 +68,7 @@ main{max-width:760px;margin:0 auto;}
 <script id="raw" type="text/plain">__RAW__</script>
 <script>
 let raw = document.getElementById('raw').textContent;
+let metaTitle = null;
 
 // 剥离 YAML frontmatter，渲染为元信息面板
 const fm = raw.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n?/);
@@ -71,6 +81,7 @@ if (fm) {
   raw = raw.slice(fm[0].length);
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
   const list = (v) => (v || '').replace(/^\[|\]$/g, '').split(',').map((x) => x.trim()).filter(Boolean);
+  metaTitle = meta.title || null;
   let html = '<div class="meta-panel">';
   if (meta.title) html += `<div class="meta-title">${esc(meta.title)}</div>`;
   html += '<div class="meta-rows">';
@@ -83,12 +94,49 @@ if (fm) {
   const tags = list(meta.tags);
   if (tags.length) html += `<div class="meta-tags">${tags.map((t) => `<span class="meta-tag">#${esc(t)}</span>`).join('')}</div>`;
   const srcs = list(meta.sources);
-  if (srcs.length) html += `<div class="meta-sources"><b>SOURCES</b>${srcs.map(esc).join('<br>')}</div>`;
+  if (srcs.length) {
+    html += '<div class="meta-sources"><b>SOURCES</b>' + srcs.map((s) =>
+      `<a class="src-link" href="/wiki/${encodeURI(s)}" target="_blank" rel="noopener">${esc(s)}</a>`
+    ).join('<br>') + '</div>';
+  }
   html += '</div>';
   document.getElementById('metaHost').innerHTML = html;
 }
 
+// 正文第一个 H1 与 frontmatter 标题重复时去掉（元信息面板已经展示了标题）
+if (metaTitle) {
+  raw = raw.replace(/^\s*#\s+(.+)\r?$/m, (m, h1) =>
+    h1.trim() === metaTitle.trim() ? '' : m);
+}
+
 document.getElementById('content').innerHTML = DOMPurify.sanitize(marked.parse(raw));
+
+// [[wikilink]] → 可点击链接（拉取索引后做 DOM 级替换）
+fetch('/api/wiki-index').then((r) => r.json()).then((map) => {
+  const walker = document.createTreeWalker(document.getElementById('content'), NodeFilter.SHOW_TEXT);
+  const nodes = [];
+  while (walker.nextNode()) nodes.push(walker.currentNode);
+  for (const node of nodes) {
+    if (node.parentElement.closest('a')) continue;
+    const text = node.nodeValue;
+    if (!/\[\[([^\]]+)\]\]/.test(text)) continue;
+    const frag = document.createDocumentFragment();
+    const re = /\[\[([^\]]+)\]\]/g;
+    let m, last = 0;
+    while ((m = re.exec(text))) {
+      frag.appendChild(document.createTextNode(text.slice(last, m.index)));
+      const name = m[1], path = map[name];
+      const el = document.createElement(path ? 'a' : 'span');
+      el.className = path ? 'wl' : 'wl-dead';
+      el.textContent = `[[${name}]]`;
+      if (path) { el.href = `/wiki/${encodeURI(path)}`; el.target = '_blank'; el.rel = 'noopener'; }
+      frag.appendChild(el);
+      last = m.index + m[0].length;
+    }
+    frag.appendChild(document.createTextNode(text.slice(last)));
+    node.parentNode.replaceChild(frag, node);
+  }
+}).catch(() => {});
 </script></body></html>"""
 
 
@@ -125,6 +173,11 @@ def wiki_file(relpath):
 @app.route("/")
 def index():
     return send_from_directory("static", "index.html")
+
+
+@app.route("/api/version")
+def version():
+    return jsonify({"version": APP_VERSION})
 
 
 @app.route("/api/wiki-index")
