@@ -14,145 +14,6 @@ APP_VERSION = "2026-07-27.1"  # 前端用它检测后端是否过旧（改了记
 
 app = Flask(__name__, static_folder="static", static_url_path="")
 
-VIEWER_HTML = r"""<!DOCTYPE html>
-<html lang="zh-CN"><head>
-<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>__TITLE__ · Wiki</title>
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23060606'/%3E%3Cpath d='M32 9 L55 32 L32 55 L9 32 Z' fill='none' stroke='%23e8e8e8' stroke-width='3'/%3E%3Ccircle cx='32' cy='32' r='5' fill='%23e8e8e8'/%3E%3C/svg%3E">
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/lxgw-wenkai-webfont@1.7.0/style.css">
-<script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js"></script>
-<style>
-body{background:#0a0a0a;color:#e5e5e5;font-family:"LXGW WenKai",serif;margin:0;padding:48px 20px;}
-main{max-width:760px;margin:0 auto;}
-.crumbs{font-family:Consolas,monospace;font-size:12.5px;color:#666;letter-spacing:.08em;
-  border-bottom:1px solid #222;padding-bottom:14px;margin-bottom:30px;}
-/* frontmatter 元信息面板 */
-.meta-panel{border:1px solid #222;border-radius:14px;background:#0f0f10;padding:20px 24px;margin-bottom:34px;}
-.meta-title{font-size:26px;font-weight:700;color:#fff;line-height:1.4;}
-.meta-rows{display:flex;flex-wrap:wrap;gap:8px 22px;margin-top:12px;
-  font-family:Consolas,monospace;font-size:12px;color:#888;}
-.meta-rows b{color:#555;font-weight:400;margin-right:6px;}
-.meta-tags{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px;}
-.meta-tag{font-family:Consolas,monospace;font-size:11.5px;color:#bbb;
-  border:1px solid #2c2c2c;border-radius:6px;padding:3px 10px;background:#141414;}
-.meta-sources{margin-top:12px;font-family:Consolas,monospace;font-size:11.5px;color:#666;line-height:1.8;word-break:break-all;}
-.meta-sources b{color:#555;font-weight:400;}
-.src-link{color:#999;text-decoration:none;border-bottom:1px dashed #444;}
-.src-link:hover{color:#fff;border-bottom-color:#fff;}
-.markdown .wl{display:inline-block;background:#e8e8e8;color:#0a0a0a !important;
-  font-size:.85em;font-weight:700;padding:1px 10px;margin:0 2px;border-radius:999px;
-  text-decoration:none !important;transition:.2s;}
-.markdown .wl:hover{background:#fff;box-shadow:0 0 16px rgba(255,255,255,.4);transform:translateY(-1px);}
-.markdown .wl::after{content:" ↗";font-size:.8em;opacity:.55;}
-.markdown .wl-dead{color:#777;border-bottom:1px dashed #444;}
-.markdown{font-size:16.5px;line-height:1.95;}
-.markdown h1,.markdown h2,.markdown h3{color:#fff;margin:26px 0 12px;}
-.markdown h1{font-size:26px;}.markdown h2{font-size:20px;border-left:3px solid #fff;padding-left:12px;}
-.markdown p{margin:12px 0;}.markdown ul,.markdown ol{padding-left:24px;margin:10px 0;}
-.markdown li{margin:6px 0;}
-.markdown a{color:#ccc;text-decoration:underline;text-underline-offset:3px;}
-.markdown code{background:#1a1a1a;padding:2px 7px;border-radius:5px;font-size:.9em;
-  font-family:Consolas,monospace;}
-.markdown pre{background:#111;border:1px solid #222;border-radius:10px;padding:16px;overflow-x:auto;}
-.markdown pre code{background:none;padding:0;}
-.markdown blockquote{border-left:3px solid #444;margin:14px 0;padding:4px 16px;color:#999;}
-.markdown table{border-collapse:collapse;margin:14px 0;width:100%;}
-.markdown th,.markdown td{border:1px solid #2a2a2a;padding:8px 12px;font-size:14.5px;}
-.markdown th{background:#141414;color:#fff;}
-.markdown img{max-width:100%;}
-</style></head><body><main>
-<div class="crumbs">◈ LLM WIKI / __PATH__</div>
-<div id="metaHost"></div>
-<div id="content" class="markdown"></div>
-</main>
-<script id="raw" type="text/plain">__RAW__</script>
-<script>
-let raw = document.getElementById('raw').textContent;
-let metaTitle = null;
-
-// 剥离 YAML frontmatter，渲染为元信息面板
-const fm = raw.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n?/);
-if (fm) {
-  const meta = {};
-  for (const line of fm[1].split(/\r?\n/)) {
-    const m = line.match(/^(\w[\w-]*):\s*(.*)$/);
-    if (m) meta[m[1]] = m[2].trim();
-  }
-  raw = raw.slice(fm[0].length);
-  const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-  const list = (v) => (v || '').replace(/^\[|\]$/g, '').split(',').map((x) => x.trim()).filter(Boolean);
-  metaTitle = meta.title || null;
-  // 分别收集各部分内容；全都为空（如 raw/ 原始文档）则不渲染面板
-  let inner = '';
-  if (meta.title) inner += `<div class="meta-title">${esc(meta.title)}</div>`;
-  let rows = '';
-  if (meta.type) rows += `<span><b>TYPE</b>${esc(meta.type)}</span>`;
-  if (meta.created) rows += `<span><b>CREATED</b>${esc(meta.created)}</span>`;
-  if (meta.updated) rows += `<span><b>UPDATED</b>${esc(meta.updated)}</span>`;
-  if (meta.confidence) rows += `<span><b>CONF</b>${esc(meta.confidence)}</span>`;
-  if (meta.status) rows += `<span><b>STATUS</b>${esc(meta.status)}</span>`;
-  if (rows) inner += `<div class="meta-rows">${rows}</div>`;
-  const tags = list(meta.tags);
-  if (tags.length) inner += `<div class="meta-tags">${tags.map((t) => `<span class="meta-tag">#${esc(t)}</span>`).join('')}</div>`;
-  const srcs = list(meta.sources);
-  if (srcs.length) {
-    inner += '<div class="meta-sources"><b>SOURCES</b>' + srcs.map((s) =>
-      `<a class="src-link" href="/wiki/${encodeURI(s)}" target="_blank" rel="noopener">${esc(s)}</a>`
-    ).join('<br>') + '</div>';
-  }
-  if (inner) {
-    document.getElementById('metaHost').innerHTML = `<div class="meta-panel">${inner}</div>`;
-  }
-}
-
-// 正文第一个 H1 与 frontmatter 标题重复时去掉（元信息面板已经展示了标题）
-if (metaTitle) {
-  raw = raw.replace(/^\s*#\s+(.+)\r?$/m, (m, h1) =>
-    h1.trim() === metaTitle.trim() ? '' : m);
-}
-
-document.getElementById('content').innerHTML = DOMPurify.sanitize(marked.parse(raw));
-
-// [[wikilink]] → 胶囊链接；^[raw/...md] 溯源标记 → 朴素链接（DOM 级替换）
-fetch('/api/wiki-index').then((r) => r.json()).then((map) => {
-  const walker = document.createTreeWalker(document.getElementById('content'), NodeFilter.SHOW_TEXT);
-  const nodes = [];
-  while (walker.nextNode()) nodes.push(walker.currentNode);
-  for (const node of nodes) {
-    if (node.parentElement.closest('a')) continue;
-    const text = node.nodeValue;
-    if (!/\[\[([^\]]+)\]\]|\^\[[^\]]+\.md\]/.test(text)) continue;
-    const frag = document.createDocumentFragment();
-    const re = /\[\[([^\]]+)\]\]|\^\[([^\]]+\.md)\]/g;
-    let m, last = 0;
-    while ((m = re.exec(text))) {
-      frag.appendChild(document.createTextNode(text.slice(last, m.index)));
-      if (m[1] !== undefined) {
-        // [[wikilink]]
-        const name = m[1], path = map[name];
-        const el = document.createElement(path ? 'a' : 'span');
-        el.className = path ? 'wl' : 'wl-dead';
-        el.textContent = `[[${name}]]`;
-        if (path) { el.href = `/wiki/${encodeURI(path)}`; el.target = '_blank'; el.rel = 'noopener'; }
-        frag.appendChild(el);
-      } else {
-        // ^[raw/...md] 溯源标记 → 朴素链接（路径即 wiki 内相对路径，直接可开）
-        const a = document.createElement('a');
-        a.className = 'src-link';
-        a.textContent = m[0];
-        a.href = `/wiki/${encodeURI(m[2])}`;
-        a.target = '_blank'; a.rel = 'noopener';
-        frag.appendChild(a);
-      }
-      last = m.index + m[0].length;
-    }
-    frag.appendChild(document.createTextNode(text.slice(last)));
-    node.parentNode.replaceChild(frag, node);
-  }
-}).catch(() => {});
-</script></body></html>"""
-
 
 def _safe_wiki_path(relpath: str):
     """把相对路径解析到 WIKI_ROOT 下，拒绝穿越。NFC/NFD 归一化兜底。"""
@@ -170,20 +31,20 @@ def _safe_wiki_path(relpath: str):
 
 @app.route("/wiki/<path:relpath>")
 def wiki_file(relpath):
+    """校验路径后返回统一的查看器页面（static/viewer.html 再拉取 /api/wiki-raw）。"""
+    if _safe_wiki_path(relpath) is None:
+        abort(404)
+    return send_from_directory("static", "viewer.html")
+
+
+@app.route("/api/wiki-raw/<path:relpath>")
+def wiki_raw(relpath):
+    """返回 wiki 页面的原始 markdown（JSON）。"""
     full = _safe_wiki_path(relpath)
     if full is None:
         abort(404)
     with open(full, "r", encoding="utf-8") as f:
-        raw = f.read()
-    # 防止原始内容里出现 </script> 闭合掉容器
-    raw_safe = raw.replace("</script>", "<\\/script>")
-    title = relpath.rsplit("/", 1)[-1].replace(".md", "")
-    html = (VIEWER_HTML
-            .replace("__RAW__", raw_safe)
-            .replace("__TITLE__", title)
-            .replace("__PATH__", relpath))
-    return Response(html, mimetype="text/html")
-
+        return jsonify({"relpath": relpath, "raw": f.read()})
 
 
 @app.route("/")

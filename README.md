@@ -63,6 +63,25 @@ copy config.example.json config.json
 # 打开 http://127.0.0.1:5007
 ```
 
+## 目录结构
+
+```
+wiki-ask/
+├── app.py               # Flask 入口：路由（ask/stream/wiki viewer/wiki 索引）
+├── core.py              # 引擎：spawn Hermes CLI + state.db 轮询 → 事件流
+├── config.example.json  # 配置模板（复制为 config.json 后填自己的路径）
+├── requirements.txt
+├── static/              # 前端（纯静态，无构建步骤）
+│   ├── index.html       # 搜索引擎式主页/结果页
+│   ├── app.js           # 前端逻辑（SSE、档案、展示推断）
+│   ├── style.css        # 单色科技风样式
+│   └── viewer.html      # wiki 原文查看器（拉取 /api/wiki-raw 渲染）
+├── docs/                # 开发者文档
+│   ├── events.md        # 事件流格式、state.db 字段、定制日志指南
+│   └── example-skill.md # 通用问答 skill 模板
+└── tests/               # 可公开测试（tests_private/ 已 gitignore，放私有数据）
+```
+
 ## 文档
 
 - [docs/events.md](docs/events.md) — 事件流格式、state.db 原始字段说明、过滤逻辑位置、如何获取更详细的日志
