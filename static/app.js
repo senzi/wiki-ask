@@ -28,21 +28,27 @@ function applySite(s) {
   $("#mainInput").placeholder = s.search_placeholder;
   $("#archiveBtn").textContent = s.archive_label;
   $("#drawerTitle").textContent = s.drawer_title;
-  // 预设问题 chips
+  renderChips();
+}
+
+/* 预设问题：每次从池子里随机抽 4 个展示 */
+const CHIP_COUNT = 4;
+function renderChips() {
   const chips = $("#chips");
   chips.innerHTML = "";
-  if (s.preset_questions && s.preset_questions.length) {
-    const label = document.createElement("span");
-    label.className = "chips-label";
-    label.textContent = "TRY //";
-    chips.appendChild(label);
-    for (const q of s.preset_questions) {
-      const b = document.createElement("button");
-      b.className = "chip";
-      b.textContent = q;
-      b.onclick = () => ask(q);
-      chips.appendChild(b);
-    }
+  const pool = SITE.preset_questions || [];
+  if (!pool.length) return;
+  const label = document.createElement("span");
+  label.className = "chips-label";
+  label.textContent = "TRY //";
+  chips.appendChild(label);
+  const picked = [...pool].sort(() => Math.random() - 0.5).slice(0, CHIP_COUNT);
+  for (const q of picked) {
+    const b = document.createElement("button");
+    b.className = "chip";
+    b.textContent = q;
+    b.onclick = () => ask(q);
+    chips.appendChild(b);
   }
 }
 
@@ -131,6 +137,7 @@ function renderHistory() {
 function toLanding() {
   $("#results").classList.add("hidden");
   $("#landing").classList.remove("hidden");
+  renderChips();  // 回到主页时重新随机抽 4 个
   $("#mainInput").focus();
 }
 function toResults(question) {
