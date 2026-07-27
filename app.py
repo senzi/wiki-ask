@@ -82,25 +82,27 @@ if (fm) {
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
   const list = (v) => (v || '').replace(/^\[|\]$/g, '').split(',').map((x) => x.trim()).filter(Boolean);
   metaTitle = meta.title || null;
-  let html = '<div class="meta-panel">';
-  if (meta.title) html += `<div class="meta-title">${esc(meta.title)}</div>`;
-  html += '<div class="meta-rows">';
-  if (meta.type) html += `<span><b>TYPE</b>${esc(meta.type)}</span>`;
-  if (meta.created) html += `<span><b>CREATED</b>${esc(meta.created)}</span>`;
-  if (meta.updated) html += `<span><b>UPDATED</b>${esc(meta.updated)}</span>`;
-  if (meta.confidence) html += `<span><b>CONF</b>${esc(meta.confidence)}</span>`;
-  if (meta.status) html += `<span><b>STATUS</b>${esc(meta.status)}</span>`;
-  html += '</div>';
+  // 分别收集各部分内容；全都为空（如 raw/ 原始文档）则不渲染面板
+  let inner = '';
+  if (meta.title) inner += `<div class="meta-title">${esc(meta.title)}</div>`;
+  let rows = '';
+  if (meta.type) rows += `<span><b>TYPE</b>${esc(meta.type)}</span>`;
+  if (meta.created) rows += `<span><b>CREATED</b>${esc(meta.created)}</span>`;
+  if (meta.updated) rows += `<span><b>UPDATED</b>${esc(meta.updated)}</span>`;
+  if (meta.confidence) rows += `<span><b>CONF</b>${esc(meta.confidence)}</span>`;
+  if (meta.status) rows += `<span><b>STATUS</b>${esc(meta.status)}</span>`;
+  if (rows) inner += `<div class="meta-rows">${rows}</div>`;
   const tags = list(meta.tags);
-  if (tags.length) html += `<div class="meta-tags">${tags.map((t) => `<span class="meta-tag">#${esc(t)}</span>`).join('')}</div>`;
+  if (tags.length) inner += `<div class="meta-tags">${tags.map((t) => `<span class="meta-tag">#${esc(t)}</span>`).join('')}</div>`;
   const srcs = list(meta.sources);
   if (srcs.length) {
-    html += '<div class="meta-sources"><b>SOURCES</b>' + srcs.map((s) =>
+    inner += '<div class="meta-sources"><b>SOURCES</b>' + srcs.map((s) =>
       `<a class="src-link" href="/wiki/${encodeURI(s)}" target="_blank" rel="noopener">${esc(s)}</a>`
     ).join('<br>') + '</div>';
   }
-  html += '</div>';
-  document.getElementById('metaHost').innerHTML = html;
+  if (inner) {
+    document.getElementById('metaHost').innerHTML = `<div class="meta-panel">${inner}</div>`;
+  }
 }
 
 // 正文第一个 H1 与 frontmatter 标题重复时去掉（元信息面板已经展示了标题）
@@ -111,7 +113,7 @@ if (metaTitle) {
 
 document.getElementById('content').innerHTML = DOMPurify.sanitize(marked.parse(raw));
 
-// [[wikilink]] → 可点击链接（拉取索引后做 DOM 级替换）
+// [[wikilink]] → 胶囊链接；^[raw/...md] 溯源标记 → 朴素链接（DOM 级替换）
 fetch('/api/wiki-index').then((r) => r.json()).then((map) => {
   const walker = document.createTreeWalker(document.getElementById('content'), NodeFilter.SHOW_TEXT);
   const nodes = [];
@@ -119,18 +121,29 @@ fetch('/api/wiki-index').then((r) => r.json()).then((map) => {
   for (const node of nodes) {
     if (node.parentElement.closest('a')) continue;
     const text = node.nodeValue;
-    if (!/\[\[([^\]]+)\]\]/.test(text)) continue;
+    if (!/\[\[([^\]]+)\]\]|\^\[[^\]]+\.md\]/.test(text)) continue;
     const frag = document.createDocumentFragment();
-    const re = /\[\[([^\]]+)\]\]/g;
+    const re = /\[\[([^\]]+)\]\]|\^\[([^\]]+\.md)\]/g;
     let m, last = 0;
     while ((m = re.exec(text))) {
       frag.appendChild(document.createTextNode(text.slice(last, m.index)));
-      const name = m[1], path = map[name];
-      const el = document.createElement(path ? 'a' : 'span');
-      el.className = path ? 'wl' : 'wl-dead';
-      el.textContent = `[[${name}]]`;
-      if (path) { el.href = `/wiki/${encodeURI(path)}`; el.target = '_blank'; el.rel = 'noopener'; }
-      frag.appendChild(el);
+      if (m[1] !== undefined) {
+        // [[wikilink]]
+        const name = m[1], path = map[name];
+        const el = document.createElement(path ? 'a' : 'span');
+        el.className = path ? 'wl' : 'wl-dead';
+        el.textContent = `[[${name}]]`;
+        if (path) { el.href = `/wiki/${encodeURI(path)}`; el.target = '_blank'; el.rel = 'noopener'; }
+        frag.appendChild(el);
+      } else {
+        // ^[raw/...md] 溯源标记 → 朴素链接（路径即 wiki 内相对路径，直接可开）
+        const a = document.createElement('a');
+        a.className = 'src-link';
+        a.textContent = m[0];
+        a.href = `/wiki/${encodeURI(m[2])}`;
+        a.target = '_blank'; a.rel = 'noopener';
+        frag.appendChild(a);
+      }
       last = m.index + m[0].length;
     }
     frag.appendChild(document.createTextNode(text.slice(last)));
