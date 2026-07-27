@@ -10,7 +10,19 @@ from flask import Flask, jsonify, request, Response, send_from_directory, abort
 from core import start_ask, get_task, CONFIG
 
 WIKI_ROOT = CONFIG["wiki_root"]
-APP_VERSION = "2026-07-27.1"  # 前端用它检测后端是否过旧（改了记得 bump）
+APP_VERSION = "2026-07-27.2"  # 前端用它检测后端是否过旧（改了记得 bump）
+
+# 站点文案默认值（可被 config.json 的 "site" 段覆盖）
+SITE_DEFAULTS = {
+    "name": "Wiki Ask",
+    "subtitle": "KNOWLEDGE RETRIEVAL",
+    "footer": "Powered by Hermes Agent — answers come only from your wiki",
+    "search_placeholder": "Ask your knowledge base…",
+    "archive_label": "◈ ARCHIVE",
+    "drawer_title": "◈ ARCHIVE",
+    "thinking_text": "Agent 正在翻阅 Wiki…",
+    "preset_questions": [],
+}
 
 app = Flask(__name__, static_folder="static", static_url_path="")
 
@@ -55,6 +67,12 @@ def index():
 @app.route("/api/version")
 def version():
     return jsonify({"version": APP_VERSION})
+
+
+@app.route("/api/site-config")
+def site_config():
+    """前端站点文案（名称/副标题/页脚/预设问题等），来自 config.json 的 site 段。"""
+    return jsonify({**SITE_DEFAULTS, **CONFIG.get("site", {})})
 
 
 @app.route("/api/wiki-index")

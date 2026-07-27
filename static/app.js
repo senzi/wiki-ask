@@ -1,6 +1,51 @@
 /* 析问 · Wiki Ask 前端逻辑 — Hermes 桌面端风格过程展示 */
 const $ = (s) => document.querySelector(s);
 
+/* ---------- 站点文案（后端 /api/site-config，可被 config.json 覆盖） ---------- */
+const SITE = {
+  name: "Wiki Ask",
+  subtitle: "KNOWLEDGE RETRIEVAL",
+  footer: "",
+  search_placeholder: "Ask your knowledge base…",
+  archive_label: "◈ ARCHIVE",
+  drawer_title: "◈ ARCHIVE",
+  thinking_text: "Agent 正在翻阅 Wiki…",
+  preset_questions: [],
+};
+
+fetch("/api/site-config")
+  .then((r) => (r.ok ? r.json() : null))
+  .then((cfg) => { if (cfg) applySite({ ...SITE, ...cfg }); })
+  .catch(() => {});
+
+function applySite(s) {
+  Object.assign(SITE, s);
+  document.title = s.name;
+  $("#siteName").textContent = s.name;
+  $("#siteSubtitle").textContent = s.subtitle;
+  $("#homeLink").textContent = s.name;
+  $("#siteFooter").textContent = s.footer;
+  $("#mainInput").placeholder = s.search_placeholder;
+  $("#archiveBtn").textContent = s.archive_label;
+  $("#drawerTitle").textContent = s.drawer_title;
+  // 预设问题 chips
+  const chips = $("#chips");
+  chips.innerHTML = "";
+  if (s.preset_questions && s.preset_questions.length) {
+    const label = document.createElement("span");
+    label.className = "chips-label";
+    label.textContent = "TRY //";
+    chips.appendChild(label);
+    for (const q of s.preset_questions) {
+      const b = document.createElement("button");
+      b.className = "chip";
+      b.textContent = q;
+      b.onclick = () => ask(q);
+      chips.appendChild(b);
+    }
+  }
+}
+
 const LS_KEY = "wiki-ask-history-v2";
 
 /* ---------- 历史记录（localStorage，含过程日志 + 多版本） ----------
@@ -99,7 +144,7 @@ function toResults(question) {
   $("#answerBody").innerHTML = `
     <div class="thinking">
       <span class="dot"></span><span class="dot"></span><span class="dot"></span>
-      <span class="thinking-text">析染正在翻阅 Wiki…</span>
+      <span class="thinking-text">${escapeHtml(SITE.thinking_text)}</span>
     </div>`;
   _pendingTools = [];
 }
@@ -454,6 +499,7 @@ $("#menuBtn").onclick = openDrawer;
 $("#archiveBtn").onclick = openDrawer;
 $("#drawerMask").onclick = closeDrawer;
 $("#homeLink").onclick = toLanding;
+$("#homeBtn").onclick = toLanding;
 $("#clearBtn").onclick = () => { if (confirm("清空全部检索档案？")) { saveHistory([]); renderHistory(); } };
 $("#exportBtn").onclick = () => {
   const blob = new Blob([JSON.stringify(loadHistory(), null, 2)], { type: "application/json" });
@@ -466,7 +512,7 @@ document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeDrawe
 $("#regenBtn").onclick = () => ask($("#qTitle").textContent, /*force=*/true);
 
 /* ---------- 后端版本检测：过旧则提示重启 ---------- */
-const EXPECTED_VERSION = "2026-07-27.1";
+const EXPECTED_VERSION = "2026-07-27.2";
 fetch("/api/version")
   .then((r) => (r.ok ? r.json() : null))
   .then((v) => { if (!v || v.version !== EXPECTED_VERSION) staleBanner(); })

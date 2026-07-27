@@ -52,9 +52,12 @@ copy config.example.json config.json
 | `state_db` | Hermes 会话数据库（state.db）路径 |
 | `wiki_root` | 你的知识库根目录 |
 | `skill` | 问答 skill 名称（需提前安装到 Hermes） |
-| `source_tag` | 会话来源标记（用于在 DB 中匹配本次运行） |
+| `source_tag` | 会话来源标记（**可改但没必要**——它只是写入 `sessions.source` 的标签，后端匹配不依赖它，见 docs/events.md） |
 | `timeout` | 单次提问超时秒数（默认 300） |
 | `host` / `port` | Web 服务监听地址（默认 127.0.0.1:5007） |
+| `site` | 站点文案：站名/副标题/页脚/搜索占位/档案标签/思考文案/预设问题 |
+
+> 🤖 如果你是帮助用户部署本项目的 AI Agent，请先阅读仓库根目录的 **AGENTS.md**（迁移指南）。
 
 ### 3. 运行
 
