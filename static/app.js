@@ -259,8 +259,8 @@ function parseAnswer(markdown) {
     } else if (/^(依据|延伸阅读)/.test(part)) {
       const isExt = /^延伸阅读/.test(part);
       for (const line of part.split("\n")) {
-        // 新格式：- [[name]] · path — desc
-        let m = line.match(/\[\[([^\]]+)\]\]\s*·\s*([\w\-./\u4e00-\u9fff（）()]+\.md)\s*[—\-–]\s*(.*)/);
+        // 新格式：- [[name]] · path — desc（路径允许任意非空白字符，含 å 等非 ASCII）
+        let m = line.match(/\[\[([^\]]+)\]\]\s*·\s*([^\s]+?\.md)\s*[—\-–]\s*(.*)/);
         if (m) {
           sections.citations.push({ name: m[1], path: m[2], desc: m[3].trim(), ext: isExt });
           continue;
@@ -307,7 +307,7 @@ function linkifyDom(container) {
     let m, last = 0;
     while ((m = re.exec(text))) {
       frag.appendChild(document.createTextNode(text.slice(last, m.index)));
-      const name = m[1];
+      const name = m[1].normalize("NFC");
       const path = WIKI_MAP[name];
       const el = document.createElement(path ? "a" : "span");
       el.className = path ? "wl" : "wl-dead";

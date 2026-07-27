@@ -3,6 +3,7 @@
 import json
 import os
 import time
+import unicodedata
 
 from flask import Flask, jsonify, request, Response, send_from_directory, abort
 
@@ -154,15 +155,17 @@ fetch('/api/wiki-index').then((r) => r.json()).then((map) => {
 
 
 def _safe_wiki_path(relpath: str):
-    """把相对路径解析到 WIKI_ROOT 下，拒绝穿越。"""
+    """把相对路径解析到 WIKI_ROOT 下，拒绝穿越。NFC/NFD 归一化兜底。"""
     import os
-    full = os.path.realpath(os.path.join(WIKI_ROOT, relpath))
+    import unicodedata
     root = os.path.realpath(WIKI_ROOT)
-    if not full.lower().startswith(root.lower() + os.sep):
-        return None
-    if not os.path.isfile(full) or not full.lower().endswith(".md"):
-        return None
-    return full
+    for candidate in {relpath, unicodedata.normalize("NFC", relpath), unicodedata.normalize("NFD", relpath)}:
+        full = os.path.realpath(os.path.join(WIKI_ROOT, candidate))
+        if not full.lower().startswith(root.lower() + os.sep):
+            continue
+        if os.path.isfile(full) and full.lower().endswith(".md"):
+            return full
+    return None
 
 
 @app.route("/wiki/<path:relpath>")
@@ -204,7 +207,8 @@ def wiki_index():
             for fn in files:
                 if fn.lower().endswith(".md"):
                     rel = os.path.relpath(os.path.join(root, fn), WIKI_ROOT).replace("\\", "/")
-                    mapping.setdefault(fn[:-3], rel)
+                    # 统一 NFC 归一化，避免 LLM 输出与磁盘文件名形态不一致（å 等字符）
+                    mapping.setdefault(unicodedata.normalize("NFC", fn[:-3]), rel)
         _wiki_index_cache.update(ts=now, map=mapping)
     return jsonify(_wiki_index_cache["map"])
 
