@@ -47,7 +47,7 @@
 ### 2. 安装与配置
 
 ```powershell
-git clone <this-repo> wiki-ask
+git clone https://github.com/senzi/wiki-ask.git wiki-ask
 cd wiki-ask
 uv venv .venv; uv pip install --python .venv/Scripts/python.exe -r requirements.txt
 # 或者：python -m venv .venv; .venv/Scripts/pip install -r requirements.txt
