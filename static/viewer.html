@@ -48,6 +48,28 @@ main{max-width:760px;margin:0 auto;}
 .markdown th{background:#141414;color:#fff;}
 .markdown img{max-width:100%;}
 .err{color:#ff9c9c;font-family:Consolas,monospace;padding:40px 0;text-align:center;}
+/* 明亮主题（与主站共用 localStorage 设置） */
+body[data-theme="light"]{background:#f3f4f7;color:#1b1d23;}
+body[data-theme="light"] .crumbs{color:#9aa0ad;border-bottom-color:#e2e4ea;}
+body[data-theme="light"] .meta-panel{border-color:#e2e4ea;background:#fff;}
+body[data-theme="light"] .meta-title{color:#111;}
+body[data-theme="light"] .meta-rows{color:#6a707c;}
+body[data-theme="light"] .meta-rows b{color:#9aa0ad;}
+body[data-theme="light"] .meta-tag{color:#555;border-color:#d8dae0;background:#f2f3f6;}
+body[data-theme="light"] .meta-sources{color:#8a8f9a;}
+body[data-theme="light"] .src-link{color:#6a707c;border-bottom-color:#bbb;}
+body[data-theme="light"] .src-link:hover{color:#111;border-bottom-color:#111;}
+body[data-theme="light"] .markdown .wl{background:#1b1d23;color:#f3f4f7 !important;}
+body[data-theme="light"] .markdown .wl:hover{box-shadow:0 0 16px rgba(0,0,0,.22);}
+body[data-theme="light"] .markdown .wl-dead{color:#999;border-bottom-color:#bbb;}
+body[data-theme="light"] .markdown h1,body[data-theme="light"] .markdown h2,body[data-theme="light"] .markdown h3{color:#111;}
+body[data-theme="light"] .markdown h2{border-left-color:#111;}
+body[data-theme="light"] .markdown a{color:#445;}
+body[data-theme="light"] .markdown code{background:#e8eaf0;}
+body[data-theme="light"] .markdown pre{background:#f2f3f6;border-color:#e2e4ea;}
+body[data-theme="light"] .markdown blockquote{border-left-color:#bbb;color:#6a707c;}
+body[data-theme="light"] .markdown th,body[data-theme="light"] .markdown td{border-color:#d8dae0;}
+body[data-theme="light"] .markdown th{background:#f2f3f6;color:#111;}
 </style>
 </head>
 <body>
@@ -57,6 +79,15 @@ main{max-width:760px;margin:0 auto;}
   <div id="content" class="markdown"></div>
 </main>
 <script>
+// 主题：与主站共用 localStorage（dark 默认 / light / auto）
+(function () {
+  const mode = localStorage.getItem("wiki-ask-theme") || "dark";
+  const light = mode === "auto"
+    ? window.matchMedia("(prefers-color-scheme: light)").matches
+    : mode === "light";
+  if (light) document.body.dataset.theme = "light";
+})();
+
 // 路径来自 URL：/wiki/<相对路径>
 const relpath = decodeURIComponent(location.pathname.replace(/^\/wiki\//, ""));
 document.getElementById("crumbs").textContent = "◈ LLM WIKI / " + relpath;

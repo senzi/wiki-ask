@@ -396,3 +396,88 @@ details.think summary:hover { color: #aaa; }
 ::-webkit-scrollbar { width: 8px; }
 ::-webkit-scrollbar-thumb { background: #2a2a2a; border-radius: 4px; }
 ::-webkit-scrollbar-track { background: transparent; }
+
+/* ---- 主题切换按钮 ---- */
+.theme-btn {
+  background: none; border: 1px solid var(--border); color: var(--dim);
+  font-family: var(--mono); font-size: 12px; letter-spacing: .1em;
+  padding: 8px 14px; border-radius: 8px; cursor: pointer; transition: .25s;
+  flex: none;
+}
+.theme-btn:hover { color: var(--ink); border-color: var(--border-hi); }
+#landing .theme-btn { position: absolute; top: 26px; left: 30px; }
+
+/* ================= 明亮主题 ================= */
+body[data-theme="light"] {
+  --bg: #f3f4f7;
+  --panel: #ffffff;
+  --panel2: #f2f3f6;
+  --ink: #1b1d23;
+  --dim: #5f6470;
+  --faint: #9aa0ad;
+  --border: #e2e4ea;
+  --border-hi: #c4c8d2;
+  --glow: 0 0 32px rgba(0, 0, 0, 0.08);
+}
+body[data-theme="light"] .bg-grid {
+  background-image:
+    linear-gradient(rgba(0,0,0,.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0,0,0,.05) 1px, transparent 1px);
+}
+body[data-theme="light"] .bg-sweep {
+  background: linear-gradient(105deg, transparent 40%, rgba(0,0,0,.04) 50%, transparent 60%);
+  background-size: 250% 100%;
+}
+body[data-theme="light"] .logo {
+  background: linear-gradient(180deg, #111 20%, #555 65%, #999 100%);
+  -webkit-background-clip: text; background-clip: text;
+  animation: none; filter: drop-shadow(0 0 20px rgba(0,0,0,.12));
+}
+body[data-theme="light"] .mini-logo {
+  background: linear-gradient(180deg, #111, #777);
+  -webkit-background-clip: text; background-clip: text;
+}
+body[data-theme="light"] .go-btn,
+body[data-theme="light"] .home-btn {
+  background: #1b1d23; color: #f3f4f7; border-color: #1b1d23;
+}
+body[data-theme="light"] .go-btn:hover,
+body[data-theme="light"] .home-btn:hover { box-shadow: 0 0 24px rgba(0,0,0,.25); }
+body[data-theme="light"] .search-box,
+body[data-theme="light"] .top-search,
+body[data-theme="light"] .chip,
+body[data-theme="light"] details.think { background: rgba(0,0,0,.035); }
+body[data-theme="light"] .card { box-shadow: 0 14px 40px rgba(0,0,0,.08); }
+body[data-theme="light"] .markdown h2,
+body[data-theme="light"] .markdown strong,
+body[data-theme="light"] .cite-name { color: #111; }
+body[data-theme="light"] .markdown code { background: #e8eaf0; }
+body[data-theme="light"] #qTitle { border-left-color: #111; }
+body[data-theme="light"] .wl {
+  background: #1b1d23; color: #f3f4f7 !important; border-color: #1b1d23;
+}
+body[data-theme="light"] .wl:hover { box-shadow: 0 0 18px rgba(0,0,0,.25); }
+body[data-theme="light"] .wl-dead { color: #999; border-bottom-color: #bbb; }
+body[data-theme="light"] .dot { background: #999; }
+body[data-theme="light"] .tool-name { color: #1b1d23; }
+body[data-theme="light"] .tool-args { color: #8a8f9a; }
+body[data-theme="light"] .tool-card.finished .tool-dot { background: #1b1d23; box-shadow: 0 0 8px rgba(0,0,0,.3); }
+body[data-theme="light"] .tool-result { border-top-color: #e2e4ea; color: #6a707c; }
+body[data-theme="light"] details.think { border-color: #d8dae0; }
+body[data-theme="light"] .tl-status.done { color: #333; }
+body[data-theme="light"] #topbar { background: rgba(255,255,255,.85); }
+body[data-theme="light"] #drawer { background: rgba(255,255,255,.96); }
+body[data-theme="light"] .drawer-title { color: #555; }
+body[data-theme="light"] .hist-t { color: #9aa0ad; }
+body[data-theme="light"] .hist-empty { color: #9aa0ad; }
+body[data-theme="light"] .hist-del { color: #bbb; }
+body[data-theme="light"] .meta-line { color: #9aa0ad; }
+body[data-theme="light"] .landing-foot { color: #7a7f8a; }
+body[data-theme="light"] .logo-sub { color: #6a707c; }
+body[data-theme="light"] .chip { color: #4a4f5a; border-color: #d0d3da; }
+body[data-theme="light"] .chip:hover { color: #111; }
+body[data-theme="light"] #mainInput::placeholder,
+body[data-theme="light"] #topInput::placeholder { color: #8a8f9a; }
+body[data-theme="light"] .cite-ext { color: #aaa; }
+body[data-theme="light"] .cite-desc { color: #6a707c; }
+body[data-theme="light"] ::-webkit-scrollbar-thumb { background: #ccc; }

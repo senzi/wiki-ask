@@ -52,6 +52,27 @@ function renderChips() {
   }
 }
 
+/* ---------- 主题：夜间（默认）/ 明亮 / 自动，localStorage 持久化 ---------- */
+const THEME_KEY = "wiki-ask-theme";
+let themeMode = localStorage.getItem(THEME_KEY) || "dark";
+const _mq = window.matchMedia("(prefers-color-scheme: light)");
+
+function applyTheme() {
+  const eff = themeMode === "auto" ? (_mq.matches ? "light" : "dark") : themeMode;
+  document.body.dataset.theme = eff === "light" ? "light" : "";
+  document.querySelectorAll("[data-theme-btn]").forEach((b) => {
+    b.textContent = { dark: "☾ 夜间", light: "☀ 明亮", auto: "◐ 自动" }[themeMode];
+  });
+}
+function cycleTheme() {
+  themeMode = { dark: "light", light: "auto", auto: "dark" }[themeMode];
+  localStorage.setItem(THEME_KEY, themeMode);
+  applyTheme();
+}
+document.querySelectorAll("[data-theme-btn]").forEach((b) => (b.onclick = cycleTheme));
+_mq.addEventListener("change", () => { if (themeMode === "auto") applyTheme(); });
+applyTheme();
+
 const LS_KEY = "wiki-ask-history-v2";
 
 /* ---------- 历史记录（localStorage，含过程日志 + 多版本） ----------
