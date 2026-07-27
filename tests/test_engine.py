@@ -1,5 +1,10 @@
 # -*- coding: utf-8 -*-
-"""引擎冒烟测试：不启动 Flask，直接测 core.start_ask 全流程。"""
+"""引擎冒烟测试：不启动 Flask，直接测 core.start_ask 全流程。
+
+⚠️ 会真实调用一次 LLM（产生费用），跑之前想清楚。
+测试问题可用环境变量覆盖（适配任意知识库）：
+    WIKI_ASK_TEST_QUESTION="你的知识库里有的问题" python tests/test_engine.py
+"""
 import os
 import sys
 import time
@@ -8,9 +13,11 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from core import start_ask
 
+TEST_QUESTION = os.environ.get("WIKI_ASK_TEST_QUESTION", "这个知识库覆盖了哪些主题？")
+
 
 def main():
-    q = "MD5 还安全吗？"
+    q = TEST_QUESTION
     print(f"[test] 提问: {q}")
     task = start_ask(q)
     print(f"[test] task_id={task.id}")

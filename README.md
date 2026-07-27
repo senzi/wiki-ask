@@ -14,8 +14,17 @@
 ```
 
 - **不改动 Hermes 源码**，通过 CLI + 会话数据库组合出完整的过程可见性
-- 每次提问是独立进程、独立会话，天然支持并发与隔离
-- 知识库只读，Agent 不会写入你的笔记
+- 每次提问是独立进程、独立会话；不同问题可并发，相同问题并发时通过原子认领区分 session
+- 知识库由 skill 提示词约束为只读（注意：这是 Agent 行为约束，不是 OS 级权限隔离，见「安全边界」）
+
+> 定位声明：这是一个**本机单用户**的个人知识库 Agent 前端与集成参考实现（Demo），不是开箱即用的多人 RAG 服务。
+
+## 安全边界（重要）
+
+- **仅建议本机单用户运行**。默认监听 `127.0.0.1` 是安全的；`/api/ask` 没有鉴权、限流和并发上限，每次请求都会真实调用付费模型——**不要把 `host` 改成 `0.0.0.0` 暴露到公网或不可信局域网**。
+- 检索到的知识库内容会作为上下文发送给你配置的**模型服务商**，请确认知识库内容适合外发。
+- 完整过程日志（推理 + 工具结果原文）会进入浏览器 **localStorage**，共用同一浏览器的人可以看到。
+- "知识库只读"依赖 skill 对 Agent 的行为约束，**不是文件系统级强制只读**——Hermes 的工具权限（含 terminal）理论上可以写文件，请配合自己的 skill 约束使用。
 
 ## 特性
 
@@ -29,8 +38,11 @@
 ### 1. 前置条件
 
 - 安装并配置好 [Hermes Agent](https://github.com/NousResearch/hermes-agent)（模型 provider 可用）
+  - **已验证环境**：Hermes Agent **v0.19.0**（Windows 10 + git 安装）
+  - ⚠️ 兼容性声明：过程直播依赖轮询 Hermes 的 `state.db` 表结构（`sessions` / `messages`），这属于 Hermes **内部实现而非公开 API**，上游更新可能导致失效。失效时的排查路径见 [docs/events.md](docs/events.md)。
 - 一个 markdown 知识库目录（推荐按 [LLM Wiki 模式](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f)维护，含 `index.md` 索引效果更佳）
 - 安装问答 skill（决定答复模板与检索规范），参考 [docs/example-skill.md](docs/example-skill.md) 创建你自己的版本
+- 前端依赖 CDN（marked / DOMPurify / 字体，版本已固定但无 SRI）：**离线环境无法完整加载**
 
 ### 2. 安装与配置
 
@@ -94,6 +106,7 @@ wiki-ask/
 
 ```powershell
 .\.venv\Scripts\python.exe tests/test_engine.py   # 引擎冒烟测试（真实调用一次 LLM，约 1-3 分钟）
+$env:WIKI_ASK_TEST_QUESTION="你的知识库里有的问题"  # 可选：自定义测试问题
 node tests/test_extraction.js                      # 展示层推断逻辑（离线，零成本）
 ```
 

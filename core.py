@@ -39,6 +39,12 @@ TIMEOUT = int(CONFIG.get("timeout", 300))  # 秒
 
 _tasks = {}
 _lock = threading.Lock()
+_claimed_sessions = set()  # 已被某个任务认领的 session_id（防并发撞车）
+
+
+def _site_text(key: str, default: str) -> str:
+    """站点文案（后端侧状态提示），来自 config.json 的 site 段。"""
+    return str(CONFIG.get("site", {}).get(key) or default)
 
 
 class AskTask:
@@ -72,25 +78,35 @@ def _db():
     return sqlite3.connect(f"file:{STATE_DB}?mode=ro", uri=True, timeout=5)
 
 
-def _find_session_id(launch_ts: float, question: str):
-    """在 state.db 中找本次运行对应的 session：按启动时间 + 首条用户消息内容匹配。"""
+def _claim_session_id(launch_ts: float, prompt: str):
+    """在 state.db 中找本次运行对应的 session 并原子认领。
+
+    匹配条件：启动时间 + 首条 user 消息 == 完整 prompt。
+    认领是原子操作（同一把锁里 check-and-add）：两个相同问题并发时，
+    各自认领不同的 session，不会认领同一个。
+    """
     try:
         db = _db()
         rows = db.execute(
             "SELECT id FROM sessions WHERE started_at >= ? ORDER BY started_at ASC",
             (launch_ts - 5,),
         ).fetchall()
+        candidates = []
         for (sid,) in rows:
             msg = db.execute(
                 "SELECT content FROM messages WHERE session_id=? AND role='user' ORDER BY id LIMIT 1",
                 (sid,),
             ).fetchone()
-            if msg and (msg[0] or "").strip() == question.strip():
-                db.close()
-                return sid
+            if msg and (msg[0] or "").strip() == prompt.strip():
+                candidates.append(sid)
         db.close()
     except sqlite3.Error:
-        pass
+        return None
+    with _lock:
+        for sid in candidates:
+            if sid not in _claimed_sessions:
+                _claimed_sessions.add(sid)
+                return sid
     return None
 
 
@@ -105,11 +121,14 @@ def _run_task(task: AskTask):
         "--source", SOURCE_TAG,
         "-Q",
     ]
-    task.emit({"type": "status", "text": "正在唤醒析染…"})
+    task.emit({"type": "status", "text": _site_text("status_waking", "正在唤醒 Agent…")})
+    # stderr 写入临时文件（而非丢弃）：进程异常退出时可用于诊断
+    import tempfile
+    stderr_tmp = tempfile.TemporaryFile(mode="w+b")
     try:
         proc = subprocess.Popen(
             cmd, cwd=WORKDIR,
-            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL, stderr=stderr_tmp,
         )
     except OSError as e:
         task.emit({"type": "error", "text": f"无法启动 hermes: {e}"})
@@ -131,10 +150,10 @@ def _run_task(task: AskTask):
 
         # 找 session（注意：匹配的是包装后的完整 prompt，不是裸问题）
         if task.session_id is None:
-            sid = _find_session_id(launch_ts, prompt)
+            sid = _claim_session_id(launch_ts, prompt)
             if sid:
                 task.session_id = sid
-                task.emit({"type": "status", "text": "已接入知识库，开始检索…", "session_id": sid})
+                task.emit({"type": "status", "text": _site_text("status_connected", "已接入知识库，开始检索…"), "session_id": sid})
 
         # 增量读消息
         if task.session_id:
@@ -173,8 +192,11 @@ def _run_task(task: AskTask):
                     elif role == "assistant" and content:
                         # 中途的 assistant 文本（最终答复以进程退出后最后一次为准）
                         task.answer = content
-            except sqlite3.Error:
-                pass
+            except sqlite3.Error as e:
+                # 不再静默：把 DB 异常暴露到事件流（限一次，避免刷屏）
+                if not getattr(task, "_db_err_noted", False):
+                    task._db_err_noted = True
+                    task.emit({"type": "status", "text": f"state.db 读取异常（自动重试中）：{e}"})
 
         if proc.poll() is not None:
             break
@@ -198,13 +220,28 @@ def _run_task(task: AskTask):
 
     task.elapsed = round(time.time() - launch_ts, 1)
     rc = proc.poll()
+
+    def _stderr_tail(n: int = 500) -> str:
+        try:
+            stderr_tmp.seek(0, 2)
+            size = stderr_tmp.tell()
+            stderr_tmp.seek(max(0, size - n))
+            return stderr_tmp.read().decode("utf-8", "replace").strip()
+        except (OSError, ValueError):
+            return ""
+
     if task.answer:
         task.emit({"type": "answer", "content": task.answer})
         task.emit({"type": "done", "elapsed": task.elapsed, "session_id": task.session_id})
     elif rc not in (0, None):
-        task.emit({"type": "error", "text": f"hermes 进程异常退出（code {rc}）"})
+        tail = _stderr_tail()
+        msg = f"hermes 进程异常退出（code {rc}）"
+        if tail:
+            msg += f"\nstderr: {tail}"
+        task.emit({"type": "error", "text": msg})
     elif not any(e["type"] == "error" for e in task.events):
         task.emit({"type": "error", "text": "没有拿到答复，请重试"})
+    stderr_tmp.close()
 
     task.done = True
     with task._cond:

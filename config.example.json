@@ -16,6 +16,8 @@
     "archive_label": "◈ ARCHIVE",
     "drawer_title": "◈ ARCHIVE",
     "thinking_text": "Agent 正在翻阅 Wiki…",
+    "status_waking": "正在唤醒 Agent…",
+    "status_connected": "已接入知识库，开始检索…",
     "preset_questions": [
       "这个知识库覆盖了哪些主题？",
       "给我一个最重要的知识点"
