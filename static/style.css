@@ -194,6 +194,28 @@ body {
   font-size: .92em; font-family: var(--mono);
 }
 
+/* 正文中的 [[wikilink]] */
+.wl {
+  display: inline-block;
+  background: #e8e8e8; color: #0a0a0a !important;
+  font-size: .86em; font-weight: 700;
+  padding: 1px 11px; margin: 0 2px;
+  border-radius: 999px; text-decoration: none !important;
+  border: 1px solid #fff;
+  transition: .22s;
+  position: relative;
+}
+.wl:hover {
+  background: #fff;
+  box-shadow: 0 0 18px rgba(255,255,255,.45), 0 0 42px rgba(255,255,255,.15);
+  transform: translateY(-1px) scale(1.04);
+}
+.wl::after { content: " ↗"; font-size: .8em; opacity: .55; }
+.wl-dead {
+  color: #8a8a8a; font-size: .92em;
+  border-bottom: 1px dashed #4a4a4a; padding-bottom: 1px;
+}
+
 .thinking { display: flex; align-items: center; gap: 8px; color: var(--dim); padding: 12px 0; }
 .dot { width: 8px; height: 8px; border-radius: 50%; background: #bbb; animation: bounce 1.2s infinite; }
 .dot:nth-child(2) { animation-delay: .15s; }

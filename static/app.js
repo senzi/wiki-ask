@@ -89,6 +89,70 @@ function escapeHtml(s) {
   return String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 }
 
+/* ---------- 展示推断：从完整 raw 日志提取显示信息 ----------
+   日志存的是原始 args/raw（调试友好），展示层在这里推断。
+   兼容三代格式：args/raw（当前）> label/ok（过渡版）> preview（旧档案）。 */
+
+function _tryParse(s) {
+  try { return JSON.parse(s); } catch { return null; }
+}
+
+function extractTarget(ev) {
+  if (ev.label) return ev.label;  // 过渡版兼容
+  const name = ev.name;
+  const s = ev.args || ev.preview || "";
+  const a = _tryParse(s);
+  if (a && typeof a === "object") {
+    if (name === "read_file" && a.path) {
+      return String(a.path).replace(/\\/g, "/").split("/").pop() || "某个文件";
+    }
+    if (name === "search_files") return a.pattern || a.file_glob || "某个关键词";
+    if (name === "terminal" && a.command) return String(a.command).slice(0, 60);
+    if (name === "skill_view") return a.name || "";
+  }
+  // 旧档案 preview 可能被截断，正则兜底
+  if (name === "read_file") {
+    const m = s.match(/"path"\s*:\s*"([^"]+)"/);
+    if (m) {
+      const base = m[1].replace(/\\\\/g, "/").replace(/\\/g, "/").split("/").pop();
+      if (base && !base.startsWith("{")) return base;
+    }
+    const m2 = s.match(/([\w\u4e00-\u9fff（）()\-]+\.\w{1,5})/);
+    return m2 ? m2[1] : "某个文件";
+  }
+  if (name === "search_files") {
+    const m = s.match(/"pattern"\s*:\s*"([^"]+)"/) || s.match(/"file_glob"\s*:\s*"([^"]+)"/);
+    return m ? m[1] : "某个关键词";
+  }
+  if (name === "terminal") {
+    const m = s.match(/"command"\s*:\s*"([^"]{1,60})/);
+    return m ? m[1] : "某条命令";
+  }
+  return "";
+}
+
+function detectOk(ev) {
+  if (ev.ok !== undefined) return ev.ok;  // 过渡版兼容
+  const s = ev.raw || ev.preview || "";
+  const d = _tryParse(s);
+  if (d && typeof d === "object") {
+    if (d.error) return false;
+    if (d.exit_code !== undefined && d.exit_code !== null && d.exit_code !== 0) return false;
+    return true;
+  }
+  if (/"error"\s*:\s*"[^"]/.test(s)) return false;
+  if (/"exit_code"\s*:\s*[1-9]/.test(s)) return false;
+  return true;
+}
+
+function failureText(ev) {
+  const s = ev.raw || ev.preview || "";
+  const d = _tryParse(s);
+  if (d && typeof d === "object" && d.error) return String(d.error);
+  const m = s.match(/"error"\s*:\s*"([^"]+)"/);
+  return m ? m[1] : s.slice(0, 200);
+}
+
 function tlStatus(text, cls = "") {
   const div = document.createElement("div");
   div.className = `tl-status ${cls}`;
@@ -106,29 +170,34 @@ function tlReasoning(text) {
   scrollProc();
 }
 
-function tlToolCall(name, label, preview) {
+function tlToolCall(ev) {
   const card = document.createElement("div");
   card.className = "tool-card";
   card.innerHTML = `
     <div class="tool-head">
       <span class="tool-dot"></span>
-      <span class="tool-name">${escapeHtml(TOOL_LABEL[name] || name)}</span>
-      <span class="tool-args">${escapeHtml(label || preview || "")}</span>
+      <span class="tool-name">${escapeHtml(TOOL_LABEL[ev.name] || ev.name)}</span>
+      <span class="tool-args">${escapeHtml(extractTarget(ev))}</span>
     </div>
-    <div class="tool-result">…</div>`;
+    <div class="tool-result" style="display:none"></div>`;
   $("#timeline").appendChild(card);
   _pendingTools.push(card);
   scrollProc();
 }
 
-function tlToolResult(preview, ok) {
+function tlToolResult(ev) {
+  const ok = detectOk(ev);
   const card = _pendingTools.shift();
   if (card) {
     card.classList.add("finished");
-    if (ok === false) card.classList.add("failed");
-    card.querySelector(".tool-result").textContent = preview || "(无输出)";
-  } else {
-    tlStatus("↳ " + (preview || ""), ok === false ? "error" : "");
+    if (!ok) {
+      card.classList.add("failed");
+      const body = card.querySelector(".tool-result");
+      body.textContent = failureText(ev) || "执行失败";
+      body.style.display = "block";
+    }
+  } else if (!ok) {
+    tlStatus("⚠ " + (failureText(ev) || "执行失败"), "error");
   }
   scrollProc();
 }
@@ -142,8 +211,8 @@ function renderEvent(ev) {
   switch (ev.type) {
     case "status": tlStatus(ev.text); break;
     case "reasoning": tlReasoning(ev.text); break;
-    case "tool_call": tlToolCall(ev.name, ev.label, ev.preview); break;
-    case "tool_result": tlToolResult(ev.preview, ev.ok); break;
+    case "tool_call": tlToolCall(ev); break;
+    case "tool_result": tlToolResult(ev); break;
     case "error": tlStatus("⚠ " + ev.text, "error"); break;
     case "done": tlStatus(`✦ DONE / 用时 ${ev.elapsed}s`, "done"); break;
   }
@@ -183,9 +252,32 @@ function parseAnswer(markdown) {
   return sections;
 }
 
+/* ---------- Wiki 索引：[[wikilink]] → 可点击链接 ---------- */
+let WIKI_MAP = null;       // 文件名(不含.md) → 相对路径
+let _lastAnswerMd = null;  // 当前展示的答复原文（索引到达后重渲染用）
+
+fetch("/api/wiki-index")
+  .then((r) => r.json())
+  .then((m) => {
+    WIKI_MAP = m;
+    if (_lastAnswerMd) renderAnswer(_lastAnswerMd);
+  })
+  .catch(() => {});
+
+function linkifyWikilinks(md) {
+  return md.replace(/\[\[([^\]]+)\]\]/g, (m, name) => {
+    const path = WIKI_MAP && WIKI_MAP[name];
+    if (path) {
+      return `<a class="wl" href="/wiki/${encodeURI(path)}" target="_blank" rel="noopener">[[${name}]]</a>`;
+    }
+    return `<span class="wl-dead">[[${name}]]</span>`;
+  });
+}
+
 function renderAnswer(markdown) {
+  _lastAnswerMd = markdown;
   const { body, citations } = parseAnswer(markdown);
-  $("#answerBody").innerHTML = DOMPurify.sanitize(marked.parse(body));
+  $("#answerBody").innerHTML = DOMPurify.sanitize(marked.parse(linkifyWikilinks(body)));
 
   if (citations.length) {
     const list = $("#citeList");

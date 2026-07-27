@@ -120,22 +120,40 @@ sqlite3.connect(f"file:{STATE_DB}?mode=ro", uri=True, timeout=5)
 |---|---|---|
 | `status` | `text` | 状态提示（"正在唤醒…"等） |
 | `reasoning` | `text` | 思考原文（**未截断**） |
-| `tool_call` | `name`, `label`, `preview` | 工具调用。`label` 是友好标签，`preview` 是截断的原始参数 |
-| `tool_result` | `name`, `ok`, `preview` | 工具结果。`ok=false` 表示失败 |
+| `tool_call` | `name`, `args` | 工具调用。**`args` 是完整原始参数 JSON**（20k 字符上限） |
+| `tool_result` | `name`, `raw` | 工具结果。**`raw` 是完整原始返回 JSON**（50k 字符上限） |
 | `answer` | `content` | 最终答复全文（未截断） |
 | `done` | `elapsed`, `session_id` | 完成 |
 | `error` | `text` | 致命错误 |
 
+**设计原则：日志存 raw，展示靠推断。** 后端不做任何"友好化"加工——导出的 JSON 档案用于调试和事后分析，越完整越好；前端（`static/app.js`）负责从 raw 推断显示内容：
+
+| 前端函数 | 推断逻辑 |
+|---|---|
+| `extractTarget(ev)` | 从 `args` 提取展示目标：read_file→文件 basename、search_files→pattern、terminal→命令头（60 字符）。JSON.parse 失败时正则兜底，再失败退化为"某个文件/某个关键词" |
+| `detectOk(ev)` | 从 `raw` 判定成败：`error` 非空或 `exit_code≠0` → 失败（红点 + 显示错误原因） |
+| `failureText(ev)` | 失败时从 `raw` 提取 `error` 字段文本 |
+
+历史格式兼容：过渡版的 `label`/`ok` 字段、旧档案的截断 `preview` 字段，三个函数都能识别。
+
+## Wikilink 解析（`/api/wiki-index`）
+
+答复正文中的 `[[wikilink]]` 由前端渲染为超链接：
+
+1. 前端启动时拉取 `GET /api/wiki-index` —— 后端扫描 `wiki_root` 下所有 `.md`，返回 `{文件名(不含.md): 相对路径}`（60 秒 TTL 缓存，同名先扫到优先）
+2. `linkifyWikilinks()` 把命中索引的 `[[页面]]` 渲染为 `<a class="wl" href="/wiki/<相对路径>">`，未命中的渲染为 `.wl-dead` 死链样式
+3. `/wiki/<path>` 路由有路径穿越防护（`app.py:_safe_wiki_path`）
+
 ## 过滤/加工逻辑的位置（想改就改这里）
 
-全部在 `core.py`：
+后端（`core.py`）现在只做两件事：轮询 + 透传。所有展示层的"友好化"都在前端 `static/app.js`：
 
-| 函数 | 做了什么 | 想要更详细日志？ |
+| 位置 | 做了什么 | 想要更详细日志？ |
 |---|---|---|
-| `_preview(text, n)` | 压缩空白 + 截断到 n 字符 | 调大 n 或直接返回原文 |
-| `_tool_label(name, args)` | 从参数提取友好标签：read_file→文件名、terminal→命令头（60 字符）、search_files→pattern | 把 `preview` 从 100 字符改成完整 `args`，前端即可显示完整参数 |
-| `_result_ok(content)` | `error` 非空或 `exit_code≠0` → 失败 | — |
-| `_result_preview(content)` | 结果摘要：read_file→"N 行"、terminal→输出（120 字符）、search_files→"N 个结果" | 在 emit 里加 `"raw": content` 字段，前端即可拿到完整 JSON |
+| `core.py` tool_call emit | `args` 截断到 20k 字符 | 调大或去掉上限 |
+| `core.py` tool_result emit | `raw` 截断到 50k 字符 | 调大或去掉上限（注意 localStorage 配额） |
+| `app.js extractTarget` | 决定工具卡片显示什么 | 想显示完整参数 → 直接返回 `ev.args` |
+| `app.js saveHistory` | 单条 events 上限 300 条、历史 100 条 | 调大（注意 5~10MB localStorage 配额） |
 
 其他可调点：
 

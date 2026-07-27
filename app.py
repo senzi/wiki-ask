@@ -1,7 +1,8 @@
 # -*- coding: utf-8 -*-
 """wiki-ask Flask 入口：搜索引擎式 LLM Wiki 问答。"""
 import json
-import queue
+import os
+import time
 
 from flask import Flask, jsonify, request, Response, send_from_directory, abort
 
@@ -124,6 +125,25 @@ def wiki_file(relpath):
 @app.route("/")
 def index():
     return send_from_directory("static", "index.html")
+
+
+@app.route("/api/wiki-index")
+def wiki_index():
+    """文件名（不含 .md）→ 相对路径 的索引，供前端把 [[wikilink]] 解析成链接。
+    60 秒 TTL 缓存。同名页面先扫到的优先。"""
+    now = time.time()
+    if now - _wiki_index_cache["ts"] > 60:
+        mapping = {}
+        for root, _dirs, files in os.walk(WIKI_ROOT):
+            for fn in files:
+                if fn.lower().endswith(".md"):
+                    rel = os.path.relpath(os.path.join(root, fn), WIKI_ROOT).replace("\\", "/")
+                    mapping.setdefault(fn[:-3], rel)
+        _wiki_index_cache.update(ts=now, map=mapping)
+    return jsonify(_wiki_index_cache["map"])
+
+
+_wiki_index_cache = {"ts": 0.0, "map": {}}
 
 
 @app.route("/api/ask", methods=["POST"])

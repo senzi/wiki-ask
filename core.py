@@ -94,66 +94,6 @@ def _find_session_id(launch_ts: float, question: str):
     return None
 
 
-def _preview(text: str, n: int = 120) -> str:
-    text = re.sub(r"\s+", " ", (text or "")).strip()
-    return text[:n] + ("…" if len(text) > n else "")
-
-
-def _tool_label(name: str, args_str: str) -> str:
-    """从工具参数提取友好标签：read_file → 文件名，terminal → 命令头，等等。"""
-    try:
-        args = json.loads(args_str) if isinstance(args_str, str) else (args_str or {})
-    except (ValueError, TypeError):
-        return _preview(str(args_str), 60)
-    if not isinstance(args, dict):
-        return ""
-    if name == "read_file":
-        p = str(args.get("path", "")).replace("\\", "/")
-        return p.rsplit("/", 1)[-1] or p
-    if name == "search_files":
-        return str(args.get("pattern") or args.get("file_glob") or "")
-    if name == "terminal":
-        return _preview(str(args.get("command") or ""), 60)
-    if name == "skill_view":
-        return str(args.get("name") or "")
-    return _preview(json.dumps(args, ensure_ascii=False), 60)
-
-
-def _result_ok(content: str) -> bool:
-    """判断工具结果是否失败：error 非空或 exit_code 非 0。"""
-    try:
-        data = json.loads(content or "")
-    except (ValueError, TypeError):
-        return True
-    if isinstance(data, dict):
-        if data.get("error"):
-            return False
-        if data.get("exit_code") not in (None, 0):
-            return False
-    return True
-
-
-def _result_preview(content: str) -> str:
-    """把工具结果 JSON 转成一句话预览。"""
-    try:
-        data = json.loads(content or "")
-    except (ValueError, TypeError):
-        return _preview(content or "", 120)
-    if not isinstance(data, dict):
-        return _preview(content or "", 120)
-    if data.get("error"):
-        return _preview(str(data["error"]), 120)
-    if "output" in data:
-        return _preview(str(data.get("output") or "(无输出)"), 120)
-    if "total_lines" in data:
-        return f"{data['total_lines']} 行"
-    if "total_count" in data:
-        return f"{data['total_count']} 个结果"
-    if "content" in data:
-        return f"{len(data['content'])} 字符"
-    return _preview(content or "", 120)
-
-
 def _run_task(task: AskTask):
     launch_ts = time.time()
     cmd = [
@@ -219,14 +159,15 @@ def _run_task(task: AskTask):
                             args = c.get("arguments") or c.get("function", {}).get("arguments") or ""
                             if isinstance(args, dict):
                                 args = json.dumps(args, ensure_ascii=False)
+                            # 存完整原始参数（日志用于调试/事后分析，
+                            # 展示层的提取在前端做，见 app.js extractTarget）
                             task.emit({"type": "tool_call", "name": name,
-                                       "label": _tool_label(name, str(args)),
-                                       "preview": _preview(str(args), 100)})
+                                       "args": str(args)[:20000]})
                             saw_tool = True
                     elif role == "tool":
+                        # 存完整原始返回（上限 50k 字符保护存储）
                         task.emit({"type": "tool_result", "name": tool_name or "tool",
-                                   "ok": _result_ok(content or ""),
-                                   "preview": _result_preview(content or "")})
+                                   "raw": (content or "")[:50000]})
                     elif role == "assistant" and content:
                         # 中途的 assistant 文本（最终答复以进程退出后最后一次为准）
                         task.answer = content
